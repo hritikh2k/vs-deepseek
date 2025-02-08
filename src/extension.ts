@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ollama from 'ollama'; // Ensure 'ollama' is installed
+import ollama from 'ollama';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('DeepSeek-R1 extension is now active!');
@@ -15,10 +15,8 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		);
 
-		// Set the initial HTML content for the webview
 		panel.webview.html = getWebviewContent();
 
-		// Handle messages from the webview
 		panel.webview.onDidReceiveMessage(
 			async (message: any) => {
 				if (message.command === "chat") {
@@ -26,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
 					let responseText = '';
 
 					try {
-						// Indicate that the bot is thinking
+
 						panel.webview.postMessage({ command: 'thinking', isThinking: true });
 
 						const streamResponse = await ollama.chat({
@@ -35,15 +33,12 @@ export function activate(context: vscode.ExtensionContext) {
 							stream: true,
 						});
 
-						// Collect all chunks into a single response
 						for await (const part of streamResponse) {
 							responseText += part.message.content;
 						}
 
-						// Send the full response to the webview
 						panel.webview.postMessage({ command: 'receiveMessage', text: responseText });
 
-						// Remove the "thinking" indicator
 						panel.webview.postMessage({ command: 'thinking', isThinking: false });
 
 					} catch (err) {
