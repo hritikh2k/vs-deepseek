@@ -35,11 +35,12 @@ export function activate(context: vscode.ExtensionContext) {
 							stream: true,
 						});
 
+						// Collect all chunks into a single response
 						for await (const part of streamResponse) {
 							responseText += part.message.content;
 						}
 
-						// Send the full response once processing is complete
+						// Send the full response to the webview
 						panel.webview.postMessage({ command: 'receiveMessage', text: responseText });
 
 						// Remove the "thinking" indicator
@@ -51,9 +52,9 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		);
-	});
 
-	context.subscriptions.push(disposable);
+		context.subscriptions.push(disposable);
+	});
 }
 
 function getWebviewContent(): string {
@@ -66,11 +67,52 @@ function getWebviewContent(): string {
         <title>Deepseek Chat</title>
         <style>
             body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
-            #chat { height: 80vh; overflow-y: auto; border: 1px solid #ccc; padding: 10px; }
-            #input { display: flex; margin-top: 10px; }
-            #input textarea { flex: 1; padding: 10px; }
-            #input button { padding: 10px; cursor: pointer; }
-            #thinking { font-style: italic; color: gray; display: none; }
+            #chat { 
+                height: 80vh; 
+                overflow-y: auto; 
+                border: 1px solid #ccc; 
+                padding: 10px; 
+                background-color:rgb(26, 23, 23); 
+                border-radius: 5px; 
+            }
+            #chat div { 
+                margin-bottom: 10px; 
+                padding: 5px; 
+                border-radius: 5px; 
+            }
+            #chat div:nth-child(odd) { 
+                background-color:rgb(26, 23, 23); 
+            }
+            #chat div:nth-child(even) { 
+                background-color: rgb(37, 34, 34); 
+            }
+            #input { 
+                display: flex; 
+                margin-top: 10px; 
+            }
+            #input textarea { 
+                flex: 1; 
+                padding: 10px; 
+                border: 1px solid #ccc; 
+                border-radius: 5px; 
+            }
+            #input button { 
+                padding: 10px; 
+                margin-left: 10px; 
+                background-color: #007acc; 
+                color: white; 
+                border: none; 
+                border-radius: 5px; 
+                cursor: pointer; 
+            }
+            #input button:hover { 
+                background-color: #005f99; 
+            }
+            #thinking { 
+                font-style: italic; 
+                color: white; 
+                display: none; 
+            }
         </style>
     </head>
     <body>
@@ -107,9 +149,14 @@ function getWebviewContent(): string {
             function appendMessage(sender, text) {
                 const chat = document.getElementById('chat');
                 const messageElement = document.createElement('div');
-                messageElement.textContent = \`\${sender}: \${text}\`;
+                
+                // Style the sender and message text
+                messageElement.innerHTML = \`
+                    <strong>\${sender}:</strong> <span style="white-space: pre-wrap;">\${text}</span>
+                \`;
+                
                 chat.appendChild(messageElement);
-                chat.scrollTop = chat.scrollHeight;
+                chat.scrollTop = chat.scrollHeight; // Auto-scroll to the latest message
             }
         </script>
     </body>
