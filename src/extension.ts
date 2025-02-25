@@ -2,58 +2,56 @@ import * as vscode from 'vscode';
 import ollama from 'ollama';
 
 export function activate(context: vscode.ExtensionContext) {
-	console.log('DeepSeek-R1 extension is now active!');
+    console.log('DeepSeek-R1 extension is now active!');
 
-	const disposable = vscode.commands.registerCommand('vs-deepseek.deepChat', () => {
-		const panel = vscode.window.createWebviewPanel(
-			'deepchat',
-			'Deepseek Chat',
-			vscode.ViewColumn.One,
-			{
-				enableScripts: true,
-				retainContextWhenHidden: true,
-			}
-		);
+    const disposable = vscode.commands.registerCommand('vs-deepseek.deepChat', () => {
+        const panel = vscode.window.createWebviewPanel(
+            'deepchat',
+            'Deepseek Chat',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+            }
+        );
 
-		panel.webview.html = getWebviewContent();
+        panel.webview.html = getWebviewContent();
 
-		panel.webview.onDidReceiveMessage(
-			async (message: any) => {
-				if (message.command === "chat") {
-					const userPrompt = message.text;
-					let responseText = '';
+        panel.webview.onDidReceiveMessage(
+            async (message: any) => {
+                if (message.command === "chat") {
+                    const userPrompt = message.text;
+                    let responseText = '';
 
-					try {
+                    try {
+                        panel.webview.postMessage({ command: 'thinking', isThinking: true });
 
-						panel.webview.postMessage({ command: 'thinking', isThinking: true });
+                        const streamResponse = await ollama.chat({
+                            model: 'deepseek-r1:1.5b',
+                            messages: [{ role: 'user', content: userPrompt }],
+                            stream: true,
+                        });
 
-						const streamResponse = await ollama.chat({
-							model: 'deepseek-r1:1.5b',
-							messages: [{ role: 'user', content: userPrompt }],
-							stream: true,
-						});
+                        for await (const part of streamResponse) {
+                            responseText += part.message.content;
+                            panel.webview.postMessage({ command: 'receivePartialMessage', text: responseText });
+                        }
 
-						for await (const part of streamResponse) {
-							responseText += part.message.content;
-						}
+                        panel.webview.postMessage({ command: 'thinking', isThinking: false });
 
-						panel.webview.postMessage({ command: 'receiveMessage', text: responseText });
+                    } catch (err) {
+                        panel.webview.postMessage({ command: 'receiveMessage', text: `Error: ${String(err)}` });
+                    }
+                }
+            }
+        );
 
-						panel.webview.postMessage({ command: 'thinking', isThinking: false });
-
-					} catch (err) {
-						panel.webview.postMessage({ command: 'receiveMessage', text: `Error: ${String(err)}` });
-					}
-				}
-			}
-		);
-
-		context.subscriptions.push(disposable);
-	});
+        context.subscriptions.push(disposable);
+    });
 }
 
 function getWebviewContent(): string {
-	return /*html*/ `
+    return /*html*/ `
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -121,19 +119,30 @@ function getWebviewContent(): string {
             const vscode = acquireVsCodeApi();
 
             document.getElementById('send').addEventListener('click', () => {
+                sendMessage();
+            });
+
+            document.getElementById('message').addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            function sendMessage() {
                 const message = document.getElementById('message').value.trim();
                 if (message) {
                     appendMessage('You', message);
                     vscode.postMessage({ command: 'chat', text: message });
                     document.getElementById('message').value = '';
                 }
-            });
+            }
 
             window.addEventListener('message', (event) => {
                 const message = event.data;
                 
-                if (message.command === 'receiveMessage') {
-                    appendMessage('AI', message.text);
+                if (message.command === 'receivePartialMessage') {
+                    updatePartialMessage('AI', message.text);
                 }
                 
                 if (message.command === 'thinking') {
@@ -151,6 +160,24 @@ function getWebviewContent(): string {
                 \`;
                 
                 chat.appendChild(messageElement);
+                chat.scrollTop = chat.scrollHeight; // Auto-scroll to the latest message
+            }
+
+            function updatePartialMessage(sender, text) {
+                let chat = document.getElementById('chat');
+                let lastMessage = chat.lastElementChild;
+
+                if (!lastMessage || !lastMessage.classList.contains('partial')) {
+                    lastMessage = document.createElement('div');
+                    lastMessage.classList.add('partial');
+                    lastMessage.innerHTML = \`
+                        <strong>\${sender}:</strong> <span style="white-space: pre-wrap;">\${text}</span>
+                    \`;
+                    chat.appendChild(lastMessage);
+                } else {
+                    lastMessage.querySelector('span').textContent = text;
+                }
+
                 chat.scrollTop = chat.scrollHeight; // Auto-scroll to the latest message
             }
         </script>
